@@ -1,4 +1,4 @@
 requests
 lxml
-feedparser==5.*
+feedparser>=5.1.2
 urltools
