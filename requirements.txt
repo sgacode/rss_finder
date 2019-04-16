@@ -1,0 +1,4 @@
+requests
+lxml
+feedparser==5.*
+urltools
