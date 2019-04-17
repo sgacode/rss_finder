@@ -1,4 +1,5 @@
 import typing
+import logging
 
 import feedparser
 import urltools
@@ -7,6 +8,12 @@ from lxml import etree
 
 from . import exceptions
 from .loader import Loader
+from . import LOGGER_NAME
+
+
+def log(url, msg, level=logging.DEBUG):
+    msg = '[{0}] {1}'.format(url, msg)
+    logging.getLogger(LOGGER_NAME).log(level, msg)
 
 
 class RssFinder:
@@ -52,31 +59,45 @@ class RssFinder:
 
     def search(self, url: str, max_results=None) -> typing.List[str]:
         url = self.normalize_url(url)
+        log(url, 'Start process url')
 
         # fetch url content
-        r = self.loader.fetch(url)
+        try:
+            r = self.loader.fetch(url)
+        except exceptions.RequestException as e:
+            log(str(e), url, level=logging.ERROR)
+            return []
+
+        log(url, 'Content loaded')
 
         # try parse from html & validate urls
+        log(url, 'Start parse from html')
         res = self.parse_from_html(r.text, url)
         res = [self.normalize_url(res_url, main_url=url) for res_url in res]
         res = [url for url in res if self.validate_rss_url(url)]
         if res and (not max_results or len(res) >= max_results):
+            log(url, 'End parse from html => finish, results count: {0}'.format(len(res)))
             return res
+        log(url, 'End parse from html, results count: {0}'.format(len(res)))
 
         # try load common urls
+        log(url, 'Start load common urls')
         for cur_url in self.typical_urls:
             cur_url = self.normalize_url('/' + cur_url, main_url=url)
-            r = self.loader.fetch(cur_url)
-            if r.status_code != 200 or not len(r.text):
-                continue
+            log(url, 'Try common url {0}'.format(cur_url))
 
             if self.validate_rss_url(cur_url):
                 res.append(cur_url)
 
             if max_results and len(res) >= max_results:
                 break
+        log(url, 'End load common urls, results count: {0}'.format(len(res)))
 
-        return list(set(res))
+        res = list(set(res))
+
+        log(url, 'End process url, total unique results count: {0}'.format(len(res)))
+
+        return res
 
     def parse_from_html(self, content: str, url: str) -> typing.List[str]:
         res = []
@@ -104,7 +125,15 @@ class RssFinder:
         return res
 
     def validate_rss_url(self, url: str) -> bool:
-        r = self.loader.fetch(url)
+        try:
+            r = self.loader.fetch(url)
+        except exceptions.RequestException as e:
+            log(str(e), url, level=logging.ERROR)
+            return False
+
+        if r.status_code != 200 or not len(r.text):
+            return False
+
         f = feedparser.parse(r.text)
         if not len(f.entries):
             return False
