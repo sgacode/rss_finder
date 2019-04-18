@@ -54,8 +54,8 @@ class RssFinder:
         'xml/rss.xml',
     ]
 
-    def __init__(self, requests_options=None):
-        self.loader = Loader(requests_options)
+    def __init__(self, requests_options=None, loader_timeout=None):
+        self.loader = Loader(requests_options, timeout=loader_timeout)
 
     def search(self, url: str, max_results=None) -> typing.List[str]:
         url = self.normalize_url(url)
